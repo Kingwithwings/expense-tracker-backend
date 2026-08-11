@@ -1,12 +1,21 @@
-# Step 1: Build the Spring Boot application using Maven
-FROM maven:3.9-eclipse-temurin-17 AS build
+# Step 1: Build stage using Maven and Java 17 (or change to temurin-21 if using Java 21)
+FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /app
-COPY . .
-RUN mvn clean package -DskipTests
 
-# Step 2: Run the built JAR file using lightweight JDK 17 runtime
-FROM eclipse-temurin:17-jre
+# Copy pom.xml first to leverage Docker cache for dependencies
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+# Copy source code and build executable JAR
+COPY src ./src
+RUN mvn clean package -DskipTests -e -X
+
+# Step 2: Lightweight runtime stage
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
+
+# Expose port 8080 for Spring Boot
 EXPOSE 8080
+
 ENTRYPOINT ["java", "-jar", "app.jar"]
